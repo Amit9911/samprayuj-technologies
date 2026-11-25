@@ -35,7 +35,13 @@ function isConnected(){ return !!getConfig().url && !!getConfig().key; }
 function updateBanner(){ const b=document.getElementById('demoBanner'); if(isConnected()){ b.textContent='● Live — Connected to Supabase • Bookings are saved'; b.style.background='#D1FAE5'; } }
 updateBanner();
 //function openSettings(){ document.getElementById('supaUrl').value=getCfg().url; document.getElementById('supaKey').value=getCfg().key; document.getElementById('adminPinSetting').value=getCfg().pin; document.getElementById('settingsModal').classList.remove('hidden'); }
-function openSettings() { alert("Settings is admin-only. Login as Admin first."); }
+function openSettings() {
+  if (!isConnected()) {
+    openSettingsSecure();
+    return;
+  }
+  alert("Settings is admin-only. Login as Admin first.");
+}
 function openSettingsSecure() {
   if (!isAdminLoggedIn()) { alert("Login as Admin first."); return; }
   const c = getConfig();
@@ -49,7 +55,7 @@ function saveSettings(){
   localStorage.setItem('supa_url', document.getElementById('supaUrl').value.trim());
   localStorage.setItem('supa_key', document.getElementById('supaKey').value.trim());
  // const pin=document.getElementById('adminPinSetting').value.trim(); if(pin) localStorage.setItem('admin_pin', pin);
- if (!isAdminLoggedIn()) { alert("Login as Admin first."); return; }
+ if (!isAdminLoggedIn()&& isConnected()) { alert("Login as Admin first."); return; }
  
  document.getElementById('settingsMsg').textContent='Saved! Refreshing...'; updateBanner(); setTimeout(()=>location.reload(),800);
 }
