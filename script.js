@@ -65,10 +65,12 @@ function saveLocal(b){ const a=localBookings(); a.unshift(b); localStorage.setIt
 
 // Supabase helpers
 async function supaFetch(path, method='GET', body){
-  const c=getConfig();
-  const token = (method !== 'POST' && isAdminLoggedIn()) ? getAdminToken() : c.key;
-  const res=await fetch(c.url.replace(/\/$/,'')+'/rest/v1/'+path, {method, headers: { apikey: c.key, Authorization: "Bearer " + token ,'Content-Type':'application/json','Prefer':'return=representation'}, body: body?JSON.stringify(body):undefined});
-  if(!res.ok) throw new Error('Supabase error '+res.status); return res.json();
+  const c = getConfig();
+  // POST (new booking) MUST use anon key. GET/PATCH (admin) MUST use admin token.
+  const token = (method === 'POST') ? c.key : (isAdminLoggedIn() ? getAdminToken() : c.key);
+  const res = await fetch(c.url.replace(/\/$/,'') + '/rest/v1/' + path, {method, headers: { apikey: c.key, Authorization: "Bearer " + token, 'Content-Type':'application/json', 'Prefer':'return=representation'}, body: body ? JSON.stringify(body) : undefined});
+  if(!res.ok){ const t = await res.text(); throw new Error('Supabase ' + res.status + ': ' + t.slice(0,300)); }
+  return res.json();
 }
 async function fetchBookings(){
   if (!isAdminLoggedIn()) { return []; }
@@ -76,8 +78,15 @@ async function fetchBookings(){
   return localBookings();
 }
 async function createBooking(data){
-  if(isConnected()){ try{ const r=await supaFetch('bookings','POST',data); return r[0]; }catch(e){ saveLocal(data); return data; } }
-  saveLocal(data); return data;
+  if(!isConnected()){ alert('NOT CONNECTED: No URL/Key saved. Admin > First-Time Setup > paste URL + Key > Save.'); saveLocal(data); return data; }
+  try{
+    const r = await supaFetch('bookings', 'POST', data);
+    alert('SAVED TO SUPABASE OK: ' + (r[0]?.booking_id || 'ok'));
+    return r[0];
+  }catch(e){
+    alert('BOOKING FAILED: ' + e.message);
+    saveLocal(data); return data;
+  }
 }
 
 // Booking form
@@ -137,18 +146,12 @@ function adminLogout() {
 }
 async function renderAdmin(){
   const all = await fetchBookings();
-  // Works whether your HTML uses adminSearch/searchBox or adminFilter/filterBox
-  const q = ((document.getElementById('adminSearch') || document.getElementById('searchBox'))?.value || '').toLowerCase();
-  const f = (document.getElementById('adminFilter') || document.getElementById('filterBox'))?.value || 'All';
+  // YOUR HTML uses searchBox / filterBox / statText — not adminSearch
+  const q = (document.getElementById('searchBox')?.value || '').toLowerCase();
+  const f = document.getElementById('filterBox')?.value || 'All';
   let list = all.filter(b => (!q || ((b.name||'') + (b.phone||'')).toLowerCase().includes(q)) && (f === 'All' || b.status === f));
-  const total = all.length;
-  const nNew = all.filter(b => b.status === 'New').length;
-  const nDone = all.filter(b => b.status === 'Completed').length;
-  const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-  setText('statTotal', 'Total: ' + total);
-  setText('statNew', 'New: ' + nNew);
-  setText('statDone', 'Completed: ' + nDone);
-  setText('statText', 'Total: ' + total + ' | New: ' + nNew + ' | Completed: ' + nDone);
+  const statEl = document.getElementById('statText');
+  if (statEl) statEl.textContent = 'Total: ' + all.length + ' | New: ' + all.filter(b => b.status === 'New').length + ' | Completed: ' + all.filter(b => b.status === 'Completed').length;
   const listEl = document.getElementById('adminList');
   if (!listEl) return;
   listEl.innerHTML = list.length ? list.map(b => `<div class="booking-item"><b>${b.booking_id} — ${b.service}</b><br>👤 ${b.name} • <a href="tel:${b.phone}">📞 ${b.phone}</a><br>📍 ${b.area} • 📅 ${b.date} ${b.time_slot||''}<br>📝 ${b.problem||'—'}<br><label>Status</label><select onchange="updateStatus('${b.booking_id}', this.value, ${b.id||0})">${STATUSES.map(s => `<option ${s===b.status?'selected':''}>${s}</option>`).join('')}</select></div>`).join('') : '<p>No bookings yet.</p>';
