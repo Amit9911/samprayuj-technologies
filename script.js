@@ -13,13 +13,14 @@ const SERVICES = [
   {icon:"👕", name:"Washing Machine", price:"₹399", time:"1 hr"},
   {icon:"🛠️", name:"Other Repair", price:"On Inspection", time:"Varies"},
 ];
-const STATUSES = ["New","Confirmed","Assigned","In Progress","Completed","Cancelled"];
+//const STATUSES = ["New","Confirmed","Assigned","In Progress","Completed","Cancelled"];
 
 // Render services
 const grid = document.getElementById('servicesGrid');
 if(grid) grid.innerHTML = SERVICES.map(s=>`<div class="card service-card"><div style="font-size:28px">${s.icon}</div><h3>${s.name}</h3><p class="muted">${s.time}</p><p class="price">Starting ${s.price}</p><button class="btn btn-yellow" onclick="bookService('${s.name}')">Book →</button></div>`).join('');
 function bookService(name){ document.getElementById('service').value=name; document.getElementById('book').scrollIntoView({behavior:'smooth'}); }
 function toggleNav(){ document.getElementById('mainNav').classList.toggle('open'); }
+const STATUSES = ["New", "Confirmed", "In Progress", "Completed", "Cancelled"];
 
 // Settings - Supabase
 // function getCfg(){ return {url: localStorage.getItem('supa_url')||'', key: localStorage.getItem('supa_key')||'', pin: localStorage.getItem('admin_pin')||'1234'}; } 
@@ -43,7 +44,7 @@ function openSettings() {
   alert("Settings is admin-only. Login as Admin first.");
 }
 function openSettingsSecure() {
-  if (!isAdminLoggedIn()) { alert("Login as Admin first."); return; }
+  if (!isAdminLoggedIn() && isConnected()) { alert("Login as Admin first."); return; }
   const c = getConfig();
   document.getElementById("supaUrl").value = c.url;
   document.getElementById("supaKey").value = c.key;
@@ -54,10 +55,8 @@ function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
 function saveSettings(){
   localStorage.setItem('supa_url', document.getElementById('supaUrl').value.trim());
   localStorage.setItem('supa_key', document.getElementById('supaKey').value.trim());
- // const pin=document.getElementById('adminPinSetting').value.trim(); if(pin) localStorage.setItem('admin_pin', pin);
- if (!isAdminLoggedIn()&& isConnected()) { alert("Login as Admin first."); return; }
- 
- document.getElementById('settingsMsg').textContent='Saved! Refreshing...'; updateBanner(); setTimeout(()=>location.reload(),800);
+  if (document.getElementById('settingsMsg')) document.getElementById('settingsMsg').textContent='Saved! Refreshing...';
+  updateBanner(); setTimeout(()=>location.reload(),800);
 }
 
 // Local fallback
@@ -66,7 +65,9 @@ function saveLocal(b){ const a=localBookings(); a.unshift(b); localStorage.setIt
 
 // Supabase helpers
 async function supaFetch(path, method='GET', body){
-  const c=getCfg(); const res=await fetch(c.url.replace(/\/$/,'')+'/rest/v1/'+path, {method, headers: { apikey: c.key, Authorization: "Bearer " + getAdminToken() ,'Content-Type':'application/json','Prefer':'return=representation'}, body: body?JSON.stringify(body):undefined});
+  const c=getConfig();
+  const token = (method !== 'POST' && isAdminLoggedIn()) ? getAdminToken() : c.key;
+  const res=await fetch(c.url.replace(/\/$/,'')+'/rest/v1/'+path, {method, headers: { apikey: c.key, Authorization: "Bearer " + token ,'Content-Type':'application/json','Prefer':'return=representation'}, body: body?JSON.stringify(body):undefined});
   if(!res.ok) throw new Error('Supabase error '+res.status); return res.json();
 }
 async function fetchBookings(){
