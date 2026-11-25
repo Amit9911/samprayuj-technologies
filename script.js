@@ -136,14 +136,22 @@ function adminLogout() {
   closeModal('adminModal');
 }
 async function renderAdmin(){
-  const all=await fetchBookings();
-  const q=(document.getElementById('adminSearch').value||'').toLowerCase();
-  const f=document.getElementById('adminFilter').value;
-  let list=all.filter(b=>(!q || (b.name+b.phone).toLowerCase().includes(q)) && (f==='All' || b.status===f));
-  document.getElementById('statTotal').textContent='Total: '+all.length;
-  document.getElementById('statNew').textContent='New: '+all.filter(b=>b.status==='New').length;
-  document.getElementById('statDone').textContent='Completed: '+all.filter(b=>b.status==='Completed').length;
-  document.getElementById('adminList').innerHTML = list.length? list.map(b=>`<div class="booking-item"><b>${b.booking_id} — ${b.service}</b><br>👤 ${b.name} • <a href="tel:${b.phone}">📞 ${b.phone}</a><br>📍 ${b.area} • 📅 ${b.date} ${b.time_slot||''}<br>📝 ${b.problem||'—'}<br><label>Status</label><select onchange="updateStatus('${b.booking_id}', this.value, ${b.id||0})">${STATUSES.map(s=>`<option ${s===b.status?'selected':''}>${s}</option>`).join('')}</select></div>`).join('') : '<p>No bookings yet.</p>';
+  const all = await fetchBookings();
+  // Works whether your HTML uses adminSearch/searchBox or adminFilter/filterBox
+  const q = ((document.getElementById('adminSearch') || document.getElementById('searchBox'))?.value || '').toLowerCase();
+  const f = (document.getElementById('adminFilter') || document.getElementById('filterBox'))?.value || 'All';
+  let list = all.filter(b => (!q || ((b.name||'') + (b.phone||'')).toLowerCase().includes(q)) && (f === 'All' || b.status === f));
+  const total = all.length;
+  const nNew = all.filter(b => b.status === 'New').length;
+  const nDone = all.filter(b => b.status === 'Completed').length;
+  const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  setText('statTotal', 'Total: ' + total);
+  setText('statNew', 'New: ' + nNew);
+  setText('statDone', 'Completed: ' + nDone);
+  setText('statText', 'Total: ' + total + ' | New: ' + nNew + ' | Completed: ' + nDone);
+  const listEl = document.getElementById('adminList');
+  if (!listEl) return;
+  listEl.innerHTML = list.length ? list.map(b => `<div class="booking-item"><b>${b.booking_id} — ${b.service}</b><br>👤 ${b.name} • <a href="tel:${b.phone}">📞 ${b.phone}</a><br>📍 ${b.area} • 📅 ${b.date} ${b.time_slot||''}<br>📝 ${b.problem||'—'}<br><label>Status</label><select onchange="updateStatus('${b.booking_id}', this.value, ${b.id||0})">${STATUSES.map(s => `<option ${s===b.status?'selected':''}>${s}</option>`).join('')}</select></div>`).join('') : '<p>No bookings yet.</p>';
 }
 async function updateStatus(booking_id, status, id){
   if (!isAdminLoggedIn()) { alert("Admin login required to change status."); return; }
