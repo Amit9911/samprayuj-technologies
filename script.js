@@ -66,10 +66,13 @@ function saveLocal(b){ const a=localBookings(); a.unshift(b); localStorage.setIt
 // Supabase helpers
 async function supaFetch(path, method='GET', body){
   const c = getConfig();
-  // POST (new booking) MUST use anon key. GET/PATCH (admin) MUST use admin token.
   const token = (method === 'POST') ? c.key : (isAdminLoggedIn() ? getAdminToken() : c.key);
-  const res = await fetch(c.url.replace(/\/$/,'') + '/rest/v1/' + path, {method, headers: { apikey: c.key, Authorization: "Bearer " + token, 'Content-Type':'application/json', 'Prefer':'return=representation'}, body: body ? JSON.stringify(body) : undefined});
+  // POST = return=minimal (don't try to SELECT back, anon has no SELECT permission)
+  // GET/PATCH = return=representation (admin needs the data back)
+  const prefer = (method === 'POST') ? 'return=minimal' : 'return=representation';
+  const res = await fetch(c.url.replace(/\/$/,'') + '/rest/v1/' + path, {method, headers: { apikey: c.key, Authorization: "Bearer " + token, 'Content-Type':'application/json', 'Prefer': prefer}, body: body ? JSON.stringify(body) : undefined});
   if(!res.ok){ const t = await res.text(); throw new Error('Supabase ' + res.status + ': ' + t.slice(0,300)); }
+  if(method === 'POST') return {}; // minimal returns no body, that's OK
   return res.json();
 }
 async function fetchBookings(){
@@ -80,9 +83,9 @@ async function fetchBookings(){
 async function createBooking(data){
   if(!isConnected()){ alert('NOT CONNECTED: No URL/Key saved. Admin > First-Time Setup > paste URL + Key > Save.'); saveLocal(data); return data; }
   try{
-    const r = await supaFetch('bookings', 'POST', data);
-    alert('SAVED TO SUPABASE OK: ' + (r[0]?.booking_id || 'ok'));
-    return r[0];
+    await supaFetch('bookings', 'POST', data);
+    alert('SAVED TO SUPABASE OK: ' + data.booking_id);
+    return data;
   }catch(e){
     alert('BOOKING FAILED: ' + e.message);
     saveLocal(data); return data;
